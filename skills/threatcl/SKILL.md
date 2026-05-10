@@ -188,6 +188,112 @@ control "logging" {
 }
 ```
 
+### Library Import HCL Format
+
+Library items are authored as HCL using `threat_library` and `control_library` top-level blocks (one or both per file). This is the same format produced by `threatcl cloud library export` — round-tripping export → edit → import is the supported workflow.
+
+Before authoring new items, run `threatcl cloud library export -include-drafts` so you can see what already exists and avoid colliding `reference_id` values.
+
+```hcl
+# Optional — generated automatically on export, ignored on import
+library_metadata {
+  version       = "1.0.0"
+  organization  = "acme"
+  export_date   = "2026-02-11T13:00:08Z"
+  export_source = "threatcl-cloud"
+}
+
+threat_library {
+  # Folders are optional but help organize large libraries
+  folder "Web Threats" {
+    threat "SQL Injection" {
+      reference_id         = "T-SQLI"
+      status               = "published"          # draft | published
+      version              = "2.0.14"
+      description          = "SQL Injection attack"
+      impacts              = ["Confidentiality"]
+      stride               = ["Elevation of Privilege", "Denial of Service"]
+      severity             = "critical"           # low | medium | high | critical
+      likelihood           = "very_high"          # very_low | low | medium | high | very_high
+      recommended_controls = ["C-PQUERY"]         # control reference_ids
+    }
+  }
+
+  # Items can also live at the top level, outside any folder
+  threat "Repudiation" {
+    reference_id = "T-REPUD"
+    status       = "published"
+    version      = "1.0.3"
+    description  = "User denies performing an action"
+    stride       = ["Repudiation"]
+  }
+}
+
+control_library {
+  folder "Input Controls" {
+    control "Input Validation" {
+      reference_id            = "C-INPUTVALID"
+      status                  = "published"
+      version                 = "1.0.9"
+      description             = "Validate and sanitize all input"
+      control_type            = "preventive"     # preventive | detective | corrective
+      control_category        = "technical"      # technical | administrative | physical
+      implementation_guidance = "Implementation guidance here"
+      effectiveness_rating    = 50                # 0–100
+      nist_controls           = ["SI-7"]
+      cis_controls            = ["4.1"]
+      tags                    = ["input", "validation"]
+      default_risk_reduction  = 40                # used when ref'd from a model with no override
+    }
+
+    control "Parameterized Queries" {
+      reference_id           = "C-PQUERY"
+      status                 = "published"
+      version                = "1.0.7"
+      description            = "Use parameterized queries to prevent injection"
+      control_type           = "preventive"
+      control_category       = "technical"
+      mitigates_threats      = ["T-SQLI"]         # threat reference_ids this control addresses
+      default_risk_reduction = 85
+    }
+  }
+}
+```
+
+#### Reference ID conventions
+
+- Threats: `T-` prefix + kebab-case identifier (e.g. `T-SQLI`, `T-CRED-STUFF`).
+- Controls: `C-` prefix + kebab-case identifier (e.g. `C-PQUERY`, `C-INPUTVALID`).
+- IDs are globally unique within the org's library — collisions are rejected on import.
+
+#### Import modes
+
+```bash
+# create-only (default) — adds new items, skips items whose reference_id already exists
+threatcl cloud library import library.hcl
+
+# update — adds new items AND overwrites fields on existing items with matching reference_id
+threatcl cloud library import -mode update library.hcl
+
+# replace — DESTRUCTIVE: deletes everything in the library and reimports from the file
+threatcl cloud library import -mode replace library.hcl
+```
+
+`replace` wipes the org's library before importing — never run it without explicit confirmation from the user, and prefer `update` when the goal is "sync this file into the library."
+
+#### Status and refs
+
+A `ref = "T-..."` (or `"C-..."`) in a threat model can point at either a `draft` or a `published` library item. Validation surfaces drafts as warnings but `threatcl cloud push` still succeeds:
+
+```
+$ threatcl cloud validate model.hcl
+✓ Local Threat model file matches a cloud threat model
+⚠ Warning: non-PUBLISHED control refs: [C-CDN (DRAFT)]
+✓ 1 threat ref(s) validated (PUBLISHED)
+```
+
+When authoring new library items, default `status = "draft"`. Publishing makes the item visible to every threat model in the org and is a human decision, not an agent decision.
+
 ### Working with Policies
 
 Policies are Rego (Open Policy Agent) rules that evaluate threat models against organizational standards — for example, "every internet-facing model must have at least one Spoofing control" or "no threat may be unmitigated if it impacts Confidentiality." Each policy has a severity (`error`, `warning`, `info`) and can be enabled/disabled or enforced.
@@ -432,15 +538,21 @@ data_flow_diagram_v2 "Diagram name" {
 
 3. **Reference library items** — When adding threats or controls, check the library first with `threatcl cloud library controls`, `threatcl cloud library threats` or to look for existing controls within threat models you can `threatcl cloud search -type controls`. Use `ref` attributes to link to library items rather than duplicating definitions.
 
-4. **Explain STRIDE** — When helping users categorize threats, explain which STRIDE categories apply and why.
+4. **Inventory the library before authoring new items** — Before writing any new `threat_library` or `control_library` HCL, run `threatcl cloud library export -include-drafts` so you can see what already exists. Reusing or extending an existing item beats creating a near-duplicate, and it prevents `reference_id` collisions on import.
 
-5. **Respect the backend block** — Never remove or modify the `backend` block unless the user explicitly asks. It links the local file to the cloud.
+5. **Default new library items to `status = "draft"`** — When scaffolding new library items, never set `status = "published"` on the user's behalf. Publishing exposes the item to every threat model in the org and is a deliberate human decision; the user can promote drafts via the UI or by editing the HCL and re-importing with `-mode update`.
 
-6. **Suggest data flow diagrams** — For complex systems, suggest adding a `data_flow_diagram_v2` block and generating a visual with `threatcl dfd`.
+6. **Never use `library import -mode replace` without explicit confirmation** — `replace` wipes the entire library before importing. Default to `update` for sync-style imports and `create-only` (the default) when you only want to add new items. If the user genuinely wants `replace`, confirm in plain language ("this will delete every existing library item — proceed?") before running it.
 
-7. **Validate Rego before creating policies** — When authoring or modifying a policy, always run `threatcl cloud policy validate <file>.rego` before `threatcl cloud policy create` or `update -rego-file`. This catches Rego syntax errors and schema mismatches without leaving a broken policy in the org.
+7. **Explain STRIDE** — When helping users categorize threats, explain which STRIDE categories apply and why.
 
-8. **Use `-fail-on-error` / `-fail-on-warning` in CI** — When wiring `threatcl cloud policy evaluate` into CI/CD, use these flags so that policy violations actually break the build. Without them the command always exits 0 regardless of result.
+8. **Respect the backend block** — Never remove or modify the `backend` block unless the user explicitly asks. It links the local file to the cloud.
+
+9. **Suggest data flow diagrams** — For complex systems, suggest adding a `data_flow_diagram_v2` block and generating a visual with `threatcl dfd`.
+
+10. **Validate Rego before creating policies** — When authoring or modifying a policy, always run `threatcl cloud policy validate <file>.rego` before `threatcl cloud policy create` or `update -rego-file`. This catches Rego syntax errors and schema mismatches without leaving a broken policy in the org.
+
+11. **Use `-fail-on-error` / `-fail-on-warning` in CI** — When wiring `threatcl cloud policy evaluate` into CI/CD, use these flags so that policy violations actually break the build. Without them the command always exits 0 regardless of result.
 
 ## Environment Variables (for CI/CD context)
 

@@ -3,7 +3,7 @@
 A Claude Code plugin that brings [Threatcl Cloud](https://threatcl.com) into your AI coding workflow. Bundles:
 
 - **Skill** — `threatcl` skill auto-triggers on threat-modeling work and guides the agent through the right commands.
-- **Slash commands** — four workflow commands for review, code analysis, CI scaffolding, and new-model creation.
+- **Slash commands** — five workflow commands for review, code analysis, drift detection, CI scaffolding, and new-model creation.
 - **MCP server** — the Threatcl Cloud MCP server (`threatcl`) for direct read access to your org's threat models, library, and analytics. Authenticated via Claude Code's built-in OAuth flow on first use.
 
 ## Install
@@ -36,6 +36,7 @@ The first time you use a Threatcl Cloud feature, Claude Code will open a browser
 |---|---|
 | `/threat-review <model>` | Run a structured security review of a model: unmitigated threats, STRIDE coverage, policy evaluation, library-fit suggestions, prioritized next actions. |
 | `/threat-for-code <path-or-diff>` | Analyze code (file, directory, or git diff range) and suggest threats from the org library — plus novel threats worth modeling, with HCL snippets. |
+| `/threat-drift [diff-range]` | Detect drift between recent code changes and the documented threat model. Surfaces stale threat assertions, phantom controls, new unmodeled surface, DFD drift, and dependency drift. Defaults to `main...HEAD`. |
 | `/threat-ci <flavor>` | Scaffold CI integration. Flavors: `github-actions`, `gitlab-ci`, `pre-commit`. Generates the workflow file with `threatcl cloud validate` on PR and `threatcl cloud policy evaluate` on merge. |
 | `/threat-hcl-new <name>` | Scaffold a new HCL threat model file with the cloud backend block pre-populated and a placeholder threat to fill in. |
 
@@ -54,7 +55,8 @@ For write operations (push, validate, library import, policy edits), the skill f
 │  Skill ──► picks the right tool          │
 │                                           │
 │  /threat-review  ─┐                      │
-│  /threat-for-code ┼─► structured prompt  │
+│  /threat-for-code │                      │
+│  /threat-drift    ┼─► structured prompt  │
 │  /threat-ci       │                      │
 │  /threat-hcl-new ─┘                      │
 └──────────┬─────────────────┬─────────────┘
