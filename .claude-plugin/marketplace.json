@@ -1,0 +1,16 @@
+{
+  "name": "threatcl",
+  "owner": {
+    "name": "Threatcl",
+    "url": "https://threatcl.com"
+  },
+  "plugins": [
+    {
+      "name": "threatcl-cloud",
+      "source": "./",
+      "description": "Threat modeling and security analysis with Threatcl Cloud. Includes a skill, four workflow slash commands, and the Threatcl Cloud MCP server.",
+      "homepage": "https://threatcl.com",
+      "keywords": ["threat-modeling", "security", "stride", "hcl"]
+    }
+  ]
+}

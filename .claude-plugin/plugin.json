@@ -1,0 +1,19 @@
+{
+  "name": "threatcl-cloud",
+  "description": "Threat modeling with Threatcl Cloud — bundles the threatcl skill, workflow slash commands, and the Threatcl Cloud MCP server.",
+  "version": "0.1.0",
+  "author": {
+    "name": "Threatcl",
+    "url": "https://threatcl.com"
+  },
+  "homepage": "https://threatcl.com",
+  "repository": "https://github.com/threatcl/claude-plugin",
+  "license": "MIT",
+  "keywords": [
+    "threat-modeling",
+    "security",
+    "stride",
+    "hcl",
+    "threatcl"
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "threatcl": {
+      "type": "http",
+      "url": "https://beta-api.threatcl.com/mcp"
+    }
+  }
+}
