@@ -9,9 +9,11 @@ A Claude Code plugin that brings [Threatcl Cloud](https://threatcl.com) into you
 ## Install
 
 ```
-/plugin marketplace add threatcl/claude-plugin
-/plugin install threatcl-cloud@threatcl
+claude plugin marketplace add threatcl/claude-plugin
+claude plugin install threatcl-cloud@threatcl
 ```
+
+Or, install within claude using the `/plugin` command.
 
 The first time you use a Threatcl Cloud feature, Claude Code will open a browser to complete OAuth — pick your org and you're done.
 
