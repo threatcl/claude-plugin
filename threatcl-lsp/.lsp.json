@@ -1,0 +1,10 @@
+{
+  "threatcl": {
+    "command": "threatcl",
+    "args": ["lsp"],
+    "extensionToLanguage": {
+      ".hcl": "threatcl"
+    },
+    "diagnostics": true
+  }
+}
