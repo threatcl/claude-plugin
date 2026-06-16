@@ -6,6 +6,8 @@ A Claude Code plugin that brings [Threatcl Cloud](https://threatcl.com) into you
 - **Slash commands** — five workflow commands for review, code analysis, drift detection, CI scaffolding, and new-model creation.
 - **MCP server** — the Threatcl Cloud MCP server (`threatcl`) for direct read access to your org's threat models, library, and analytics. Authenticated via Claude Code's built-in OAuth flow on first use.
 
+A separate, opt-in **`threatcl-lsp`** plugin in the same marketplace adds live language-server diagnostics while Claude edits HCL threat models — see [Optional: `threatcl-lsp` language server](#optional-threatcl-lsp-language-server).
+
 ## Install
 
 ```
@@ -16,6 +18,12 @@ claude plugin install threatcl-cloud@threatcl
 Or, install within claude using the `/plugin` command.
 
 The first time you use a Threatcl Cloud feature, Claude Code will open a browser to complete OAuth — pick your org and you're done.
+
+**Optional — language server.** For live diagnostics as Claude edits HCL threat models, also install the companion plugin (read the [trade-offs](#optional-threatcl-lsp-language-server) first — it claims all `*.hcl` files):
+
+```
+claude plugin install threatcl-lsp@threatcl
+```
 
 ## Prerequisites
 
@@ -47,6 +55,25 @@ The first time you use a Threatcl Cloud feature, Claude Code will open a browser
 `.mcp.json` declares the `threatcl` MCP server at the Threatcl Cloud API endpoint. The agent gets read tools automatically (`list_threat_models`, `get_threat_model`, `search`, library lookups, usage analytics). Auth is handled by Claude Code via OAuth 2.1 with PKCE — no tokens to copy around.
 
 For write operations (push, validate, library import, policy edits), the skill falls back to the `threatcl` CLI.
+
+## Optional: `threatcl-lsp` language server
+
+`threatcl-lsp` is a **separate, opt-in** plugin in this marketplace. It wires the `threatcl lsp` language server (shipping in threatcl **0.5.0+**) into Claude Code so the agent gets **live diagnostics** — syntax errors, unknown blocks/attributes, missing required attributes, and invalid enum values — pushed into its context every time it edits an HCL threat model. That lets Claude catch and fix invalid HCL in the same turn it writes it.
+
+```
+claude plugin install threatcl-lsp@threatcl
+```
+
+Requires the `threatcl` CLI (**≥ 0.5.0**) on your `PATH` — the plugin only tells Claude Code how to launch the server, it doesn't bundle it.
+
+### Why it's separate, and the `*.hcl` caveat
+
+Claude Code matches language servers on a file's **final extension segment only**. A file named `model.tm.hcl` resolves to `.hcl`, so there is no way to scope the server to threatcl's preferred `*.tm.hcl` suffix — `threatcl-lsp` necessarily claims **all** `*.hcl` files. Consequences:
+
+- It also attaches to Terraform / Packer / Nomad HCL and may report spurious "unknown block" diagnostics there.
+- If you also install a Terraform/HCL LSP plugin, **only one server can own `.hcl`** (whichever Claude Code loads first wins; the other is dropped).
+
+That's why it isn't bundled into `threatcl-cloud`: cloud users who also edit Terraform shouldn't be opted into this trade-off automatically. **Install `threatcl-lsp` if you primarily work in threatcl HCL; skip it if your repos are mostly Terraform.** Full details in [`threatcl-lsp/README.md`](threatcl-lsp/README.md).
 
 ## Architecture
 

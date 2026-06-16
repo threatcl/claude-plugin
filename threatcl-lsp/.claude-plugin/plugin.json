@@ -1,0 +1,19 @@
+{
+  "name": "threatcl-lsp",
+  "description": "Opt-in language server for threatcl HCL threat models: live diagnostics from the threatcl lsp server. Claims all *.hcl files; requires threatcl 0.5.0+ on PATH.",
+  "version": "0.1.0",
+  "author": {
+    "name": "Threatcl",
+    "url": "https://threatcl.com"
+  },
+  "homepage": "https://threatcl.com",
+  "repository": "https://github.com/threatcl/claude-plugin",
+  "license": "MIT",
+  "keywords": [
+    "threat-modeling",
+    "security",
+    "lsp",
+    "hcl",
+    "threatcl"
+  ]
+}

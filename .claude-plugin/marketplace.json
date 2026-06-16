@@ -1,5 +1,6 @@
 {
   "name": "threatcl",
+  "description": "Threatcl's official Claude Code plugins — threat modeling with Threatcl Cloud, plus an opt-in language server for HCL threat models.",
   "owner": {
     "name": "Threatcl",
     "url": "https://threatcl.com"
@@ -8,9 +9,16 @@
     {
       "name": "threatcl-cloud",
       "source": "./",
-      "description": "Threat modeling and security analysis with Threatcl Cloud. Includes a skill, four workflow slash commands, and the Threatcl Cloud MCP server.",
+      "description": "Threat modeling and security analysis with Threatcl Cloud. Includes a skill, five workflow slash commands, and the Threatcl Cloud MCP server.",
       "homepage": "https://threatcl.com",
       "keywords": ["threat-modeling", "security", "stride", "hcl"]
+    },
+    {
+      "name": "threatcl-lsp",
+      "source": "./threatcl-lsp",
+      "description": "Opt-in language server: live diagnostics for threatcl HCL threat models via the threatcl lsp server. Claims all *.hcl files; requires threatcl 0.5.0+ on PATH.",
+      "homepage": "https://threatcl.com",
+      "keywords": ["threat-modeling", "lsp", "hcl", "threatcl"]
     }
   ]
 }
