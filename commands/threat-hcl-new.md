@@ -13,7 +13,9 @@ If `whoami` fails with an auth error, tell the user to run `threatcl cloud login
 
 ## 2. Pick a filename
 
-Slugify the model name to kebab-case and suffix with `.hcl` (e.g. `Payment Service` → `payment-service.hcl`). Write to the current working directory unless the user already has a `threatmodels/` or `models/` directory — in which case write there.
+Slugify the model name to kebab-case and suffix with `.tm.hcl` (e.g. `Payment Service` → `payment-service.tm.hcl`). Write to the current working directory unless the user already has a `threatmodels/` or `models/` directory — in which case write there.
+
+The `.tm.hcl` suffix is threatcl's convention and it matters for tooling: [`threatcl/drift-action`](https://github.com/threatcl/drift-action) discovers `*.tm.hcl` at the repo root (a bare root-level `*.hcl` is deliberately skipped so its own `.threatcl-ci.hcl` config is never mistaken for a model), and editors scope the `threatcl lsp` language server on the same suffix to avoid colliding with Terraform. The `threatcl` CLI itself accepts either.
 
 If the chosen path already exists, stop and ask the user before overwriting.
 
@@ -22,7 +24,7 @@ If the chosen path already exists, stop and ask the user before overwriting.
 Use this template, filling in the org slug and model name:
 
 ```hcl
-spec_version = "0.2.4"
+spec_version = "0.8.0"
 
 backend "threatcl-cloud" {
   organization = "<org-slug>"
@@ -68,6 +70,8 @@ threatmodel "<Model Name>" {
 
 Resolve `git config user.name` if available; otherwise leave `@team` as the author placeholder.
 
+Names must be unique: as of spec 0.7.0, two `threat` blocks with the same name in one `threatmodel`, or two `control` blocks with the same name in one `threat`, are parse errors — not warnings. Keep that in mind when you later append to this file.
+
 ## 4. Report and suggest next steps
 
 Print:
@@ -79,5 +83,6 @@ Print:
   threatcl cloud push <file>
   ```
 - A one-liner suggesting they run `/threat-for-code` against the relevant code paths to seed the model with concrete threats from the codebase.
+- A one-liner suggesting `/threat-ci drift` to wire up automated threat-model drift review on every pull request, once the model has real content in it.
 
 Don't run `validate` or `push` automatically — the user may want to flesh out the model first.

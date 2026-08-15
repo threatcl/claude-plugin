@@ -47,7 +47,7 @@ claude plugin install threatcl-lsp@threatcl
 | `/threat-review <model>` | Run a structured security review of a model: unmitigated threats, STRIDE coverage, policy evaluation, library-fit suggestions, prioritized next actions. |
 | `/threat-for-code <path-or-diff>` | Analyze code (file, directory, or git diff range) and suggest threats from the org library — plus novel threats worth modeling, with HCL snippets. |
 | `/threat-drift [diff-range]` | Detect drift between recent code changes and the documented threat model. Surfaces stale threat assertions, phantom controls, new unmodeled surface, DFD drift, and dependency drift. Defaults to `main...HEAD`. |
-| `/threat-ci <flavor>` | Scaffold CI integration. Flavors: `github-actions`, `gitlab-ci`, `pre-commit`. Generates the workflow file with `threatcl cloud validate` on PR and `threatcl cloud policy evaluate` on merge. |
+| `/threat-ci <flavor>` | Scaffold CI integration. Flavors: `github-actions`, `gitlab-ci`, `pre-commit` generate `threatcl cloud validate` on PR and `threatcl cloud policy evaluate` on merge. `drift` scaffolds [`threatcl/drift-action`](https://github.com/threatcl/drift-action) — automated threat-model drift review on every PR, the CI counterpart of `/threat-drift`. |
 | `/threat-hcl-new <name>` | Scaffold a new HCL threat model file with the cloud backend block pre-populated and a placeholder threat to fill in. |
 
 ### MCP server
@@ -98,12 +98,20 @@ That's why it isn't bundled into `threatcl-cloud`: cloud users who also edit Ter
    └──────┬───────┘   └──────┬───────┘
           │                  │
           ▼                  ▼
-        Threatcl Cloud (api.threatcl.com)
+     Threatcl Cloud (beta-api.threatcl.com)
 ```
 
 ## Configuration
 
-The plugin defaults to the production Threatcl Cloud API. If your org is on the beta endpoint, edit `.mcp.json` after install or set `THREATCL_API_URL` for the CLI.
+The plugin points at the beta Threatcl Cloud API (`https://beta-api.threatcl.com`), declared in `.mcp.json`. The CLI needs the same endpoint set explicitly:
+
+```bash
+export THREATCL_API_URL=https://beta-api.threatcl.com
+```
+
+If your org is on a different endpoint, edit `.mcp.json` after install and set `THREATCL_API_URL` to match.
+
+`/threat-ci drift` is the exception — [`threatcl/drift-action`](https://github.com/threatcl/drift-action) is self-hosted and needs no Threatcl Cloud account or endpoint. It talks only to the LLM provider you configure, under your own API key.
 
 ## License
 
