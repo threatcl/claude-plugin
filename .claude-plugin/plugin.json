@@ -1,7 +1,7 @@
 {
   "name": "threatcl-cloud",
   "description": "Threat modeling with Threatcl Cloud — bundles the threatcl skill, workflow slash commands, and the Threatcl Cloud MCP server.",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "author": {
     "name": "Threatcl",
     "url": "https://threatcl.com"

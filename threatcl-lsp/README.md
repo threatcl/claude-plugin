@@ -54,6 +54,14 @@ VS Code can. `threatcl-lsp` therefore claims **all** `*.hcl` files. That means:
 - If you also install a Terraform/HCL LSP plugin, **only one server can own
   `.hcl`** — whichever Claude Code loads first wins, and the other is silently
   dropped for `.hcl` files.
+- It attaches to **`.threatcl-ci.hcl`**, the config file for
+  [`threatcl/drift-action`](https://github.com/threatcl/drift-action), and reports
+  it as an invalid threat model. It isn't one — it's a CI config that happens to
+  be HCL. The action's own model discovery deliberately excludes it, and globs
+  `*.tm.hcl` rather than bare `*.hcl`, precisely so a CI config is never mistaken
+  for a model. The language server has no equivalent filename skip yet; until it
+  does, ignore diagnostics on that file. The fix belongs in `threatcl lsp`, not
+  here — `.lsp.json` can map `.hcl → threatcl` and nothing finer.
 
 This is exactly why the language server is a **separate, opt-in plugin** rather
 than bundled into `threatcl-cloud`: cloud users who also edit Terraform shouldn't

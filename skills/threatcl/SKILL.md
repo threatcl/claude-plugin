@@ -27,6 +27,8 @@ Before running any `threatcl cloud` command in a session, confirm the CLI is ava
 1. `threatcl version` — confirm the CLI is installed
 2. `threatcl cloud whoami` — confirm authentication and note the org slug
 
+This skill documents the CLI as of **threatcl 0.6.6 / spec 0.8.0**. Most of it works on older builds, but the multi-file features below (`-with=<glob>`, segment-aware `cloud validate -diff`, multi-file cloud models) need **0.6.2+**, and `threatcl lsp` needs **0.5.0+**. If a documented flag isn't recognised, check `threatcl version` before assuming the docs are wrong.
+
 **If `whoami` fails with a connection error** (not an auth error), the CLI is probably pointed at the wrong endpoint. Today, `threatcl cloud` requires:
 ```bash
 export THREATCL_API_URL=https://beta-api.threatcl.com
@@ -113,8 +115,10 @@ threatcl cloud search -impacts "Confidentiality" -stride "Info Disclosure" -has-
 
 Every HCL file that syncs to Threatcl Cloud needs a `backend` block. The `organization` slug comes from `threatcl cloud whoami` — if the user doesn't know it, run that first.
 
+The block takes `organization` and `threatmodel`, and nothing else. A `segment` attribute existed briefly in spec 0.4.0 for a feature that never shipped; it was removed in 0.6.0 and `segment = "..."` is now an "Unsupported argument" parse error. If you see one in an existing file, that file predates 0.6.0 and won't parse — remove the line.
+
 ```hcl
-spec_version = "0.2.4"
+spec_version = "0.8.0"
 
 backend "threatcl-cloud" {
   organization = "<org-slug>"
@@ -153,6 +157,35 @@ On first push, `threatcl cloud push` will:
 3. Upload the HCL as the first version
 
 On subsequent pushes, it will only push if differences are detected.
+
+### Multi-file Models
+
+Since threatcl 0.6.1, commands that take multiple `.hcl` files (`validate`, `list`, `view`, `dfd`, `mermaid`, `export`, `dashboard`) parse them **together as one set** rather than individually. Two consequences:
+
+- A `threatmodel` can `extends` a parent declared in a *different* file.
+- `threatmodel` names and ids must be unique **across the whole set**. The same name in two files used to be fine and each was listed independently; it's now a parse error naming the offending files. (`.json` models are still parsed individually — the set parser is HCL-only.)
+
+A cloud model can be split across several files, keyed by each file's `threatmodel` `id`:
+
+```bash
+# Parse the target file together with its siblings as one set, running the
+# same whole-set rules the server applies — extends resolution, name/id
+# uniqueness, reserved id segments, backend-block agreement — locally first.
+# Preflight failures exit non-zero before any network call.
+threatcl cloud validate -with='threatmodels/*.hcl' threatmodels/root.hcl
+threatcl cloud push -with='threatmodels/*.hcl' threatmodels/root.hcl
+
+# Diff one segment against that same segment in the cloud
+threatcl cloud validate -diff threatmodels/payments.hcl
+```
+
+Rules to respect when working with multi-file models:
+
+- **Upload the root file first, children after.** `cloud push` refuses to create a new cloud model from a file that looks like a child segment (a dotted `id`, or an `extends`) — there's no parent for it to attach to yet.
+- Each file is parsed *file-faithfully* for cloud operations: a segment whose `extends` target lives in another file doesn't fail client-side. The server validates the assembled set and stays authoritative.
+- `cloud validate` reports the server-parsed `id` and derived `segment` when the file declares an `id` or `extends`.
+
+`threatcl cloud login` supports tokens against different API endpoints — see `threatcl cloud login -h` if the user works across more than one.
 
 ### Working with Libraries
 
@@ -388,7 +421,7 @@ threatcl dashboard <file>.hcl -outdir ./docs
 When helping users write or edit HCL threat model files, follow this structure:
 
 ```hcl
-spec_version = "0.2.4"
+spec_version = "0.8.0"
 
 backend "threatcl-cloud" {
   organization = "<org-slug>"
@@ -396,6 +429,11 @@ backend "threatcl-cloud" {
 }
 
 threatmodel "<Name>" {
+  # Optional stable handle. Identifier-safe and unique within the parsed set;
+  # it survives renames, so tooling can reference the model as
+  # `threatmodel.payment_service` even though the name is an arbitrary string.
+  id = "payment_service"
+
   description = "System description"
   author      = "@author"
 
@@ -456,6 +494,60 @@ threatmodel "<Name>" {
   }
 }
 ```
+
+### Model Identifiers and Inheritance
+
+`id` (spec 0.5.0+) is optional. When present it must match `^[a-z][a-z0-9_]*$`, or be several such segments joined by dots — `payments`, `buildings.tower`, `infra.network.vpc`. Dotted ids namespace models into a hierarchy: a model may sit at the namespace itself (`buildings`) as the parent of its nested children. The one constraint is that a segment directly beneath a parent model's id can't be a threat model field name — `buildings.threats` would shadow that model's threats in references.
+
+`extends` names another model's declared `id` in the same parsed set:
+
+```hcl
+threatmodel "Base Web Service" {
+  id = "base_web"
+
+  threat "Credential stuffing" {
+    description = "Attacker replays leaked credentials against the login endpoint"
+    stride      = ["Spoofing"]
+  }
+}
+
+threatmodel "Payments API" {
+  id      = "payments_api"
+  extends = "base_web"          # inherits base_web's entities
+
+  description = "Handles card capture and settlement"
+  author      = "@payments"
+}
+```
+
+The extending model inherits the parent's threats, information assets, use cases, exclusions and third-party dependencies, plus its `attributes` block when the child declares none. Same-named items in the child win. Chains resolve parent-first; cycles and unknown targets are parse errors. Scalars, DFDs and mermaid diagrams deliberately stay per-model — they aren't inherited.
+
+Inheritance is always **explicit**. A dotted id alone (`buildings.tower`) creates a namespace relationship, not inheritance; only `extends` inherits.
+
+### Referring to Elements by Slug or Dot Notation
+
+Anywhere a model refers to another element by name — DFD `flow` `from`/`to`, `data_store` `information_asset` links, threat `information_asset_refs`, and element `trust_zone` attributes — spec 0.5.0+ accepts three forms:
+
+```hcl
+# 1. The exact name (always wins)
+from = "Web App"
+
+# 2. The element's slug, in either divider form
+from = "web-app"
+from = "web_app"
+
+# 3. Dot notation, namespaced by element kind
+from                   = process.web_app
+to                     = data_store.user_database
+information_asset_refs = [information_asset.customer_data]
+trust_zone             = trust_zone.internal_zone
+```
+
+Namespaces exist for `process`, `external_element`, `data_store`, `information_asset` and `trust_zone`, built from the element labels in the same file. Dotted references use **underscore** slugs — consistent with the `id` convention, and avoiding the hyphen/subtraction ambiguity in bare HCL expressions. A slug that isn't a valid HCL identifier (one starting with a digit, say) uses index syntax: `process["3rd_party"]`.
+
+A slug matching more than one element is a validation error, and an unknown slug fails at parse time. References are rewritten to the canonical element name at parse time, so renderers, exporters and round-tripped HCL always see canonical names.
+
+One behavior worth knowing: a `trust_zone` attribute that slug-matches a declared `trust_zone` block now resolves to that zone instead of creating a separate implicit one.
 
 Within a threatmodel block we can also include an optional data flow diagram:
 
@@ -546,13 +638,20 @@ data_flow_diagram_v2 "Diagram name" {
 
 7. **Explain STRIDE** — When helping users categorize threats, explain which STRIDE categories apply and why.
 
-8. **Respect the backend block** — Never remove or modify the `backend` block unless the user explicitly asks. It links the local file to the cloud.
+8. **Respect the backend block** — Never remove or modify the `backend` block unless the user explicitly asks. It links the local file to the cloud. (The one exception: a stale `segment` attribute, removed in spec 0.6.0, which now stops the file parsing at all.)
 
-9. **Suggest data flow diagrams** — For complex systems, suggest adding a `data_flow_diagram_v2` block and generating a visual with `threatcl dfd`.
+9. **Check for name collisions before appending** — As of spec 0.7.0, duplicate names are parse errors, not warnings. Two `threat` blocks with the same name in one `threatmodel`, or two `control` blocks with the same name in one `threat`, fail validation:
+    ```
+    TM '<tm>': duplicate threat '<name>'
+    TM '<tm>' / Threat '<threat>': duplicate control '<name>'
+    ```
+    The check runs after `expanded_control` and `control_imports` are merged in, so a name can collide with an *imported* control you can't see in the file. When adding a threat or control to an existing model, read the current names first. `threatcl cloud validate` and `push` now catch this locally, before any network call. Across a multi-file set, the same applies to `threatmodel` names and ids.
 
-10. **Validate Rego before creating policies** — When authoring or modifying a policy, always run `threatcl cloud policy validate <file>.rego` before `threatcl cloud policy create` or `update -rego-file`. This catches Rego syntax errors and schema mismatches without leaving a broken policy in the org.
+10. **Suggest data flow diagrams** — For complex systems, suggest adding a `data_flow_diagram_v2` block and generating a visual with `threatcl dfd`.
 
-11. **Use `-fail-on-error` / `-fail-on-warning` in CI** — When wiring `threatcl cloud policy evaluate` into CI/CD, use these flags so that policy violations actually break the build. Without them the command always exits 0 regardless of result.
+11. **Validate Rego before creating policies** — When authoring or modifying a policy, always run `threatcl cloud policy validate <file>.rego` before `threatcl cloud policy create` or `update -rego-file`. This catches Rego syntax errors and schema mismatches without leaving a broken policy in the org.
+
+12. **Use `-fail-on-error` / `-fail-on-warning` in CI** — When wiring `threatcl cloud policy evaluate` into CI/CD, use these flags so that policy violations actually break the build. Without them the command always exits 0 regardless of result.
 
 ## Environment Variables (for CI/CD context)
 
